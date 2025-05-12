@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import math
 import open3d as o3d
 from scipy.interpolate import CubicHermiteSpline
+import sys
 
 
 def save_mesh(vertices,faces=None,path='test.obj'):
@@ -25,7 +26,7 @@ def read_hair_data(file_path):
     :param filePath:
     :return: a list of Nx3 numpy arrays, each array represents the ordered vertices of a strand
     '''
-    raw_data = np.fromfile(file_path, dtype='float32')
+    raw_data = np.fromfile(file_path, dtype='float16')
     # number of strands
     s_cnt = int(raw_data[0])
     # each strand's begin index in 'vertices_data'
@@ -84,7 +85,7 @@ def write_strand(points, path, segments):
 
 
 def get_ground_truth_3D_occ(d, flip=False):
-    occ = scipy.io.loadmat(d, verify_compressed_data_integrity=False)['Occ'].astype(np.float32)
+    occ = scipy.io.loadmat(d, verify_compressed_data_integrity=False)['Occ'].astype(np.float16)
     occ = np.transpose(occ, [2, 0, 1])
     occ = np.expand_dims(occ, -1)  # D * H * W * 1
 
@@ -98,7 +99,7 @@ def get_ground_truth_3D_occ(d, flip=False):
 def get_ground_truth_3D_ori(d, flip=False, growInv=False):
     transfer = False
 
-    ori = scipy.io.loadmat(d, verify_compressed_data_integrity=False)['Ori'].astype(np.float32)
+    ori = scipy.io.loadmat(d, verify_compressed_data_integrity=False)['Ori'].astype(np.float16)
 
     ori = np.reshape(ori, [ori.shape[0], ori.shape[1], 3, -1]) ###128,128,3,96
     ori = ori.transpose([0, 1, 3, 2]).transpose(2, 0, 1, 3)  #128,128,96,3    96,128,128,3
@@ -263,13 +264,13 @@ def Load_Ori_And_Conf(camera, Ori_path, Conf_path):
         if not os.path.exists(os.path.join(Ori_path, view + '.png')):
             suffix = '.jpg'
         o = cv2.imread(os.path.join(Ori_path, view + suffix), cv2.IMREAD_GRAYSCALE)
-        o = (180-o)/180 * math.pi
+        o = ((180-o)/180 * math.pi).astype('float16')
         # o = np.stack([(np.cos(o) + 1) * 0.5, (-np.sin(o) + 1) * 0.5, np.zeros_like(o)], -1)
         # cv2.imwrite('test.png', o[...,::-1] * 255.)
         # o = np.stack([np.cos(o), -np.sin(o)], -1) #### used to visualize
         o = np.stack([np.sin(o), np.cos(o)], -1)
 
-        c = cv2.imread(os.path.join(Conf_path, view + suffix), cv2.IMREAD_GRAYSCALE) / 255.
+        c = (cv2.imread(os.path.join(Conf_path, view + suffix), cv2.IMREAD_GRAYSCALE) / 255).astype('float16')
         Ori[view] = o
         Conf[view] = c
 
@@ -289,7 +290,7 @@ def load_depth(camera,path,type='npy'):
     #     depths[file[:-4]] = depth
     for view, _ in camera.items():
 
-        depth =  np.load(os.path.join(path,view+'.npy')).astype(np.float32)
+        depth =  np.load(os.path.join(path,view+'.npy')).astype(np.float16)
         depths[view] = depth
 
     return depths
@@ -299,9 +300,9 @@ def load_mask(camera,path):
     suffix = files[0][-4:]
     masks = {}
     for view, _ in camera.items():
-        mask = cv2.imread(os.path.join(path, view+suffix))
+        mask = cv2.imread(os.path.join(path, view+suffix),cv2.IMREAD_UNCHANGED)
         mask[mask < 50] = 0
-        masks[view] = mask / 255.
+        masks[view] = (mask / 255).astype('float16')
 
     # files.sort()
     # masks = {}
@@ -401,7 +402,7 @@ def p2v(points,voxel_min,voxel_size,grid_resolution):
     x = np.squeeze(x)
     y = np.squeeze(y)
     z = np.squeeze(z)
-    return x,y,z
+    return x,y,z,indexs
 
 
 def voxel_to_points(voxels):

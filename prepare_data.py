@@ -9,7 +9,9 @@ from preprocess_capture_data.GaborFilter import batch_generate
 from Utils.ingp_utils import generate_ngp_posefrom_cam_params,generate_mvs_pose_from_base_cam, convert_ngp_to_nerf,convert_mesh_to_mvs
 import shutil
 import trimesh
-from Utils.Utils import transform_bust,generate_headtrans_from_tsfm,generate_bust
+from Utils.Utils import transform_bust,generate_headtrans_from_tsfm,generate_bust, generate_flame_scalp
+import re
+import numpy as np
 
 
 
@@ -57,6 +59,7 @@ if __name__ == '__main__':
         raw_root = os.path.join(args.data.root,'colmap/images')
         files = os.listdir(raw_root)
         files.sort(key=lambda x: int(x.split('.')[0].split('_')[-1]))
+        #files.sort(key=lambda x: int(re.search(r'C(\d+)', os.path.basename(x)).group(1)))
 
         os.makedirs(args.data.root+'/capture_images',exist_ok=True)
         max_sharpless = 0
@@ -67,13 +70,14 @@ if __name__ == '__main__':
             if imageVar > max_sharpless:
                 max_file = file
                 max_sharpless = imageVar
-            if (i + 1) % args.data.frame_interval == 0:  #### set frame_interval, let the num of images around 150 (100-200 is also ok)
+            if (i + 1) % args.data.frame_interval != 0:  #### set frame_interval, let the num of images around 150 (100-200 is also ok)
                 max_sharpless = 0
                 shutil.copyfile(os.path.join(raw_root, max_file), os.path.join(root, 'capture_images', max_file))
 
 
     if args.prepare_data.process_camera:
         #### 3. generate 16 fixed camera pose      generate "base_cam.json"
+        #camera_path: camera/calib_data/wky07-22/cam_params.json
         base_cam_save_path = os.path.join(root,'colmap','base_cam.json')
         generate_ngp_posefrom_cam_params(os.path.join(root,'colmap'),camera_path,base_cam_save_path)
 
@@ -91,7 +95,8 @@ if __name__ == '__main__':
         #### 5. render trainning images   generate "base_transform.json" "base.obj" and render imgs
         base_cam_path = os.path.join(root,'colmap/base_cam.json')
         save_path = os.path.join(root,'colmap/base_transform.json')
-        convert_ngp_to_nerf(base_cam_path,save_path,image_size=[1920,1080])
+        #convert_ngp_to_nerf(base_cam_path,save_path,image_size=[1920,1080])
+        convert_ngp_to_nerf(base_cam_path,save_path,image_size=[2730,4960])
         scene_path = os.path.join(root,'colmap')
         load_snapshot = os.path.join(root,'colmap/base.ingp')
         screenshot_transforms = os.path.join(root,'colmap/base_transform.json')
@@ -123,21 +128,42 @@ if __name__ == '__main__':
     if args.prepare_data.fit_bust:
         print('fiting ...')
         cmd = 'python multiview_optimization.py  --yaml=configs/Bust_fit/{} '.format(case)
-        os.system(cmd)
-        if not os.path.exists(os.path.join(args.data.root,'optimize','model_tsfm.dat')):
-            print('If you are not running wig hair, please first run bust fitting. ')
+        #os.system(cmd)
+        #if not os.path.exists(os.path.join(args.data.root,'optimize','model_tsfm.dat')):
+        #    print('If you are not running wig hair, please first run bust fitting. ')
+        
+        #uncomment for own data
+        identityMatrix = np.eye(4, dtype=np.float32)
+        rotation_matrix = np.array([
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]])
+        translation_vector = np.array([0, 0.0, 0])
+        identityMatrix[:3, :3] = rotation_matrix * 1
+        identityMatrix[:3, 3] = translation_vector
+        identityMatrix = identityMatrix.flatten()
+        if not os.path.exists(os.path.join(args.data.root,'optimize')):
+            os.makedirs(os.path.join(args.data.root,'optimize'))
+            
+        identityMatrix.tofile(os.path.join(args.data.root,'optimize','model_tsfm.dat'))
+        identityMatrix.tofile(os.path.join(args.data.root,'optimize','model_tsfm_semantic.dat'))
 
         shutil.copyfile(os.path.join(args.data.root,'optimize','model_tsfm.dat'),os.path.join(args.data.root,'model_tsfm.dat'))
         shutil.copyfile(os.path.join(args.data.root,'optimize','model_tsfm_semantic.dat'),os.path.join(args.data.root,'model_tsfm_semantic.dat'))
         Bust_root = os.path.join(args.data.root,'Bust')
         os.makedirs(Bust_root,exist_ok=True)
-        shutil.copyfile(os.path.join(args.data.root,'optimize/vis','final_template.obj'),os.path.join(Bust_root,'final_template.obj'))
-        shutil.copyfile(os.path.join(args.data.root,'optimize/vis','final_template_ori.obj'),os.path.join(Bust_root,'final_template_ori.obj'))
-
-        flame_template_path = 'assets/data/head_template.obj'
-        smplx_source_mesh = trimesh.load(os.path.join(Bust_root,'final_template.obj'))
-        smplx_template_mesh = trimesh.load(os.path.join(Bust_root, 'final_template_ori.obj'))
-        generate_bust(smplx_source_mesh,smplx_template_mesh,'assets/data/scalp_mask.png',flame_template_path,'assets/data/SMPL-X__FLAME_vertex_ids.npy',Bust_root)
+        
+        #comment for own data
+        # shutil.copyfile(os.path.join(args.data.root,'optimize/vis','final_template.obj'),os.path.join(Bust_root,'final_template.obj'))
+        # shutil.copyfile(os.path.join(args.data.root,'optimize/vis','final_template_ori.obj'),os.path.join(Bust_root,'final_template_ori.obj'))
+        # flame_template_path = 'assets/data/head_template.obj'
+        # smplx_source_mesh = trimesh.load(os.path.join(Bust_root,'final_template.obj'))
+        # smplx_template_mesh = trimesh.load(os.path.join(Bust_root, 'final_template_ori.obj'))
+        # generate_bust(smplx_source_mesh,smplx_template_mesh,'assets/data/scalp_mask.png',flame_template_path,'assets/data/SMPL-X__FLAME_vertex_ids.npy',Bust_root)
+        
+        # uncomment for own data
+        shutil.copyfile('assets/data/Wavy_head.obj',os.path.join(Bust_root,'bust_long.obj'))
+        generate_flame_scalp(Bust_root, 'assets/data/head_mod_wavy.obj','assets/data/head_mod_wavy.obj','assets/data/texture.png')
 
     if args.prepare_data.process_bust:
         #### 9. bust transform
@@ -151,11 +177,15 @@ if __name__ == '__main__':
         os.makedirs(os.path.join(root,'ours/Voxel_hair'),exist_ok=True)
         shutil.copyfile(os.path.join(root,'Bust','bust_long.obj'),os.path.join(root,'ours/Voxel_hair','bust_long.obj'))
         shutil.copyfile(os.path.join(root,'Bust','scalp.obj'),os.path.join(root,'ours/Voxel_hair','scalp.obj'))
-        shutil.copyfile(os.path.join(root,'Bust','flame_bust.obj'),os.path.join(root,'ours/Voxel_hair','flame_bust.obj'))
+        #comment for own data
+        #shutil.copyfile(os.path.join(root,'Bust','flame_bust.obj'),os.path.join(root,'ours/Voxel_hair','flame_bust.obj'))
+        
         shutil.copyfile(os.path.join(root,'model_tsfm.dat'),os.path.join(root,'ours/Voxel_hair','model_tsfm.dat'))
         transform_bust(os.path.join(root,'ours/Voxel_hair','bust_long.obj'),os.path.join(root,'ours/Voxel_hair','model_tsfm.dat'),os.path.join(root,'ours/bust_long_tsfm.obj'))
         transform_bust(os.path.join(root,'ours/Voxel_hair','scalp.obj'),os.path.join(root,'ours/Voxel_hair','model_tsfm.dat'),os.path.join(root,'ours/scalp_tsfm.obj'))
-        transform_bust(os.path.join(root,'ours/Voxel_hair','flame_bust.obj'),os.path.join(root,'ours/Voxel_hair','model_tsfm.dat'),os.path.join(root,'ours/flame_bust_tsfm.obj'))
+        #cfod
+        #transform_bust(os.path.join(root,'ours/Voxel_hair','flame_bust.obj'),os.path.join(root,'ours/Voxel_hair','model_tsfm.dat'),os.path.join(root,'ours/flame_bust_tsfm.obj'))
+        
         generate_headtrans_from_tsfm(os.path.join(root,'model_tsfm_semantic.dat'),os.path.join(root,'ours/Voxel_hair/head.trans'))
 
     if args.prepare_data.render_depth:

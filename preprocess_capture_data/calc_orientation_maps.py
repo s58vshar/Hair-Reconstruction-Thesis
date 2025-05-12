@@ -48,7 +48,7 @@ def calc_confidences(F_orients, orientation_map,args):
     
     return V_F
 
-def main(args):
+def main_orient(args):
 
     os.makedirs(args.orient_dir, exist_ok=True)
     os.makedirs(args.conf_dir, exist_ok=True)
@@ -62,15 +62,17 @@ def main(args):
         mask = np.array(Image.open(os.path.join(args.mask_path, img_name)))
 
         mask = mask/np.max(mask)
+        print("HIIII----0")
         # img = img*mask[...,None]
         F_orients = calc_orients(img, kernels)
         orientation_map = F_orients.argmax(0)
+        print("HIIII----1")
 
         # orientation_map = np.where(orientation_map<=90,90 - orientation_map, orientation_map)
         # orientation_map = np.where(orientation_map>90,270 - orientation_map, orientation_map)
         # orientation_map_rad = orientation_map.astype('float16') / args.num_filters * math.pi
         orientation_map_rad = orientation_map / args.num_filters * math.pi
-
+        print("HIIII----2")
         # indices_cm2 = np.stack([np.cos(orientation_map_rad-0.5*np.pi) * 0.5 + 0.5,
         #                         -np.sin(orientation_map_rad-0.5*np.pi) * 0.5 + 0.5, np.zeros_like(orientation_map_rad)], axis=2)
         indices_cm2 = np.stack([np.cos(orientation_map_rad ) * 0.5 + 0.5,
@@ -95,7 +97,7 @@ def main(args):
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(conflict_handler='resolve')
-    root = 'E:\wukeyu\hair\data\mvshair\wky07-27\Real_data\wig1'
+    root = '/home/sharma/MonoHair/data/ct2wings'
     parser.add_argument('--img_path', default=os.path.join(root,'capture_images'), type=str)
     parser.add_argument('--orient_dir', default= os.path.join(root,'orientation_maps'), type=str)
     parser.add_argument('--conf_dir', default= os.path.join(root,'confidence_maps'), type=str)
@@ -108,4 +110,4 @@ if __name__ == "__main__":
     args, _ = parser.parse_known_args()
     args = parser.parse_args()
 
-    main(args)
+    main_orient(args)

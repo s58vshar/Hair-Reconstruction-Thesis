@@ -25,73 +25,63 @@ class calOrientationGabor(nn.Module):
         self.clamp_confidence_high=0.2
 
 
-
-    def filter(self,image,label,threshold,variance_data,orient_data,max_resp_data,sigma_x,sigma_y,Lambda,kernel_size):
-        resArray = []
+    def filter(self, image, label, threshold, variance_data, orient_data, max_resp_data, sigma_x, sigma_y, Lambda, kernel_size):
+        H, W = image.shape[2:4]
+        orient = torch.empty((1,self.numKernels,H,W), device = image.device)
+        resTensor = torch.empty((image.shape[0],self.numKernels,H,W), device = image.device)
+        
         for iOrient in range(self.numKernels):
-            theta = nn.Parameter(torch.ones(self.channel_out) * (math.pi * iOrient / self.numKernels),
-                                 requires_grad=False).cuda()
-            GaborKernel = self.gabor_fn(kernel_size, self.channel_in, self.channel_out, theta,sigma_x,sigma_y,Lambda)
-            # save_image(GaborKernel,r'test/{}.png'.format(iOrient))
-            response = F.conv2d(image, GaborKernel, padding=kernel_size//2)
-            resArray.append(response.clone())
+            theta = torch.full((self.channel_out,), math.pi * iOrient / self.numKernels, device=image.device)
+            GaborKernel = self.gabor_fn(kernel_size, self.channel_in, self.channel_out, theta, sigma_x, sigma_y, Lambda)
+            response = F.conv2d(image, GaborKernel, padding=kernel_size // 2)
+            resTensor[:,iOrient,:,:] = response.squeeze(1)
+            orient[:,iOrient,:,:]=math.pi * iOrient / self.numKernels
 
-        resTensor = resArray[0]
-        H, W = resTensor.size()[2:4]
-        orient = torch.zeros(1, 1, H, W).cuda()
-        for iOrient in range(1, self.numKernels):
-            resTensor = torch.cat([resTensor, resArray[iOrient]], dim=1)
-            orient = torch.cat([orient, torch.ones(1, 1, H, W).cuda() * math.pi * iOrient / self.numKernels], dim=1)
 
-        # argmax the response
+        del response, GaborKernel
+        torch.cuda.empty_cache()
 
-        resTensor = torch.abs(resTensor)
+        resTensor.abs_()
         max_resp = torch.max(resTensor, dim=1, keepdim=True)[0]
         maxResTensor = torch.argmax(resTensor, dim=1, keepdim=True).float()
         best_orientTensor = maxResTensor * math.pi / self.numKernels
 
-        orient_diff = torch.minimum(torch.abs(best_orientTensor - orient),
-                           torch.minimum(torch.abs(best_orientTensor - orient - math.pi),
-                                      torch.abs(best_orientTensor - orient + math.pi)))
+        orient.sub_(best_orientTensor)
+        orient.abs_()
+        pi_tensor = torch.tensor(math.pi/2, device=image.device)
+        orient.sub_(pi_tensor)
+        orient.abs_()
+        orient.sub_(pi_tensor)
+        orient.abs_()
 
+        
+        del maxResTensor
+        torch.cuda.empty_cache()
 
+        resTensor.sub_(max_resp)
+        resTensor.mul_(resTensor)
+        resTensor.mul_(orient)
+        variance = torch.sum(resTensor, dim=1, keepdim=True)
+        variance.sqrt_()
+        
+        del orient, resTensor
+        torch.cuda.empty_cache()
 
-        # #### compute confidence similar with
-        # resTensor = torch.abs(resTensor)
-        # res_norm = resTensor/torch.maximum(torch.sum(resTensor,dim=1,keepdim=True),1e-5*torch.ones_like(torch.sum(resTensor,dim=1,keepdim=True)))
-        #
-        # variance = orient_diff*orient_diff*res_norm*3
-        # variance = torch.sum(variance,dim=1,keepdim=True)
-        # variance = 1/(variance**2)
-        #
-        #
-        # orient_data =best_orientTensor
-        # variance_data = variance
-        # confidenceTensor = variance_data
+        mask = variance > variance_data
+        orient_data = torch.where(mask, best_orientTensor, orient_data)
+        max_resp_data = torch.where(mask, max_resp, max_resp_data)
+        variance_data = torch.where(mask, variance, variance_data)
 
+        del mask, best_orientTensor, max_resp
+        torch.cuda.empty_cache()
 
-        #### compute confidence
+        max_resp_data /= torch.max(max_resp_data)
+        variance_data /= torch.max(variance_data)
 
-        resp_diff = resTensor - max_resp
-        variance = torch.sum(orient_diff * resp_diff * resp_diff, dim=1, keepdim=True)
-        variance = variance ** (1 / 2)
-
-        orient_data = torch.where(variance > variance_data, best_orientTensor, orient_data)
-        max_resp_data = torch.where(variance > variance_data, max_resp, max_resp_data)
-        variance_data = torch.where(variance > variance_data, variance, variance_data)
-
-        max_all_resp = torch.max(max_resp_data)
-
-        max_all_var = torch.max(variance_data)
-        max_resp_data /= max_all_resp
-        variance_data /= max_all_var
-
-        confidenceTensor = (variance_data - self.clamp_confidence_low) / (
-                        self.clamp_confidence_high - self.clamp_confidence_low)
-
+        confidenceTensor = (variance_data - self.clamp_confidence_low) / (self.clamp_confidence_high - self.clamp_confidence_low)
         confidenceTensor = confidenceTensor.clamp(0, 1)
 
-        return confidenceTensor,variance_data,orient_data
+        return confidenceTensor, variance_data, orient_data
 
 
 

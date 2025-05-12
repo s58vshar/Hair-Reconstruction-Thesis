@@ -610,6 +610,7 @@ class HairGrowing():
         root_flag[:num_root] =1
         out_ratio = np.zeros_like(root_flag)
 
+        print('num_root:',num_root)
         print('num of strands:',len(strands))
         print('num of good strands:',np.sum(root_flag))
         flag = True
@@ -781,6 +782,7 @@ class HairGrowing():
             if root_flag[i] or out_root_flag[i]:
                 new_strands.append(strand)
 
+        print(len(new_strands))
         return new_strands
 
 
@@ -876,7 +878,7 @@ def config_parser():
 if __name__ == '__main__':
     args = config_parser()
 
-
+    #'data/ct2wings/ours/scalp_tsfm.obj'
     mesh = o3d.io.read_triangle_mesh(args.data.scalp_path)
     scalp = o3d.geometry.TriangleMesh.sample_points_uniformly(mesh, number_of_points=60000,
                                                               use_triangle_normal=False)  # 采样点云
@@ -885,6 +887,9 @@ if __name__ == '__main__':
 
 
     scalp_points += args.bust_to_origin
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(scalp_points)
+    o3d.io.write_point_cloud(args.data.root + "/pcscalp1.ply", pcd)
     scalp_points = torch.from_numpy(scalp_points).to(args.device)
     scalp_normals = torch.from_numpy(scalp_normals).to(args.device)
 
@@ -892,6 +897,10 @@ if __name__ == '__main__':
 
     scalp_points = points_to_voxel(scalp_points)
     scalp_normals[:, 1:] *= -1
+
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(scalp_points.cpu().numpy())
+    o3d.io.write_point_cloud(args.data.root + "/pcscalp.ply", pcd)
 
     scalp_normals = scalp_normals.type(torch.float32)
     scalp_points = scalp_points.type(torch.float32)

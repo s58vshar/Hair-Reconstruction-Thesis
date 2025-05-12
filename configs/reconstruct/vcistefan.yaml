@@ -1,0 +1,25 @@
+_parent_: configs/reconstruct/base.yaml
+
+
+data:
+  case: vcistefan
+  image_size: [1400,1700]
+  frame_interval: 1
+  conf_threshold: 0.4
+
+
+PMVO:
+   patch_size: 5
+   visible_threshold: 1
+   threshold: 0.05
+   conf_threshold: 0.1
+
+ngp:
+  marching_cubes_density_thresh: 2.5
+
+
+HairGenerate:
+  connect_threshold: 0.005
+  grow_threshold: 0.9
+  connect_dot_threshold: 0.85
+  out_ratio: 0.

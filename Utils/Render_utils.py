@@ -190,6 +190,34 @@ class BustObj():
 
     def rendering(self, projection, pose):
         projection = projection.T
+        # x, y = pose[0][1], pose[1][1]
+
+        # # Choose rotation angle based on 'up' direction
+        # if abs(y) > abs(x):  
+        #     if y > 0:
+        #         angle_deg = 0   
+        #     else:
+        #         angle_deg = 0  
+        # else:  
+        #     if x > 0:
+        #         angle_deg = 90   
+        #     else:
+        #         angle_deg = -90  
+
+        # # Convert angle to radians
+        # angle_rad = np.radians(angle_deg)
+
+        # # Rotation around Z axis
+        # cos_a = np.cos(angle_rad)
+        # sin_a = np.sin(angle_rad)
+
+        # R = np.array([
+        #     [cos_a, -sin_a, 0, 0],
+        #     [sin_a,  cos_a, 0, 0],
+        #     [0,      0,     1, 0],
+        #     [0,      0,     0, 1]
+        # ]) 
+        # pose = (R@pose).T
         pose = pose.T
         self.prog['projection'].value = tuple(projection.flatten())
         self.prog['transform'].value = tuple(pose.flatten())
@@ -250,10 +278,13 @@ class Renderer():
         for mesh in self.meshes:
             mesh.rendering(projection, pose)
 
-    def ReadBuffer(self):
-        data = self.fbo.read(components=3, dtype='f4')
+    def ReadBuffer(self, components):
+        data = self.fbo.read(components=components, dtype='f4')
         image = np.frombuffer(data, dtype='f4')
-        image = image.reshape((self.Height, self.Width, 3))
+        if components == 1:
+            image = image.reshape((self.Height, self.Width))
+        else:
+            image = image.reshape((self.Height, self.Width, components))
         image = np.flip(image, 0)
         # image = Image.frombytes('F', self.fbo.size, data)
         # image = image.transpose(Image.FLIP_TOP_BOTTOM)
@@ -271,11 +302,11 @@ def render_data(camera, strands, vertices, faces, image_size=[1280, 720], save_r
     ### create Strands and BustObj with render
     renderStrands = StrandsObj(strands, Render.ctx)
     renderBust = BustObj(vertices, faces, Render.ctx)
-    Render.add_mesh(renderBust)
+    #Render.add_mesh(renderBust)
     os.makedirs(save_root, exist_ok=True)
     for view, c in camera.items():
         Render.draw(c, clear_color=[1., 1., 1.])
-        depth = Render.ReadBuffer()
+        depth = Render.ReadBuffer(1)
         cv2.imwrite(os.path.join(save_root, view, 'bust_depth.png'), depth * 255,
                     [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
@@ -285,7 +316,7 @@ def render_data(camera, strands, vertices, faces, image_size=[1280, 720], save_r
     renderBust.set_depthOption(1)
     for view, c in camera.items():
         Render.draw(c, clear_color=[0., 0., 0.])
-        color = Render.ReadBuffer()
+        color = Render.ReadBuffer(3)
         cv2.imwrite(os.path.join(save_root, view, 'undirectional_map.png'), color[..., [2, 1, 0]] * 255,
                     [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
@@ -294,7 +325,7 @@ def render_data(camera, strands, vertices, faces, image_size=[1280, 720], save_r
     renderStrands.set_colorOption(3)
     for view, c in camera.items():
         Render.draw(c, clear_color=[0., 0., 0.])
-        color = Render.ReadBuffer()
+        color = Render.ReadBuffer(3)
         cv2.imwrite(os.path.join(save_root, view, 'mask.png'), color[..., [2, 1, 0]] * 255,
                     [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
@@ -302,7 +333,7 @@ def render_data(camera, strands, vertices, faces, image_size=[1280, 720], save_r
     renderStrands.set_colorOption(0)
     for view, c in camera.items():
         Render.draw(c, clear_color=[1., 1., 1.])
-        depth = Render.ReadBuffer()
+        depth = Render.ReadBuffer(3)
         cv2.imwrite(os.path.join(save_root, view, 'hair_depth.png'), depth * 255,
                     [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
@@ -331,7 +362,7 @@ def render_bust_hair_depth(colmap_points_path, camera_path, save_root, image_siz
 
     for view, c in camera.items():
         Render.draw(c)
-        depth = Render.ReadBuffer()
+        depth = Render.ReadBuffer(1)
 
         if capture_imgs:
             # depth = np.asarray(depth)

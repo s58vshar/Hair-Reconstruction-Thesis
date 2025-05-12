@@ -942,6 +942,7 @@ def generate_headtrans_from_tsfm(tsfm_semantic_path,save_path):
     quat = r.as_quat()
     trans_and_scale = np.array([model_tsfm[0], -model_tsfm[1], -model_tsfm[2], model_tsfm[6]])
     tsfm = np.concatenate([quat[None], trans_and_scale[None]], 0)
+    print('tsfm', tsfm)
     np.savetxt(save_path, tsfm)
     # matrix = np.eye(4)
     # matrix[:3,:3] = eularToMatrix_np(np.array([model_tsfm[3], model_tsfm[5], model_tsfm[4]])/180,'xzy')
@@ -1093,7 +1094,7 @@ def transform_bust(mesh_path,tsfm_path,save_path):
 
     v = np.array(head_mesh.vertices)
     model_tsfm = np.fromfile(os.path.join(tsfm_path),
-                             dtype=np.float32).reshape(4, 4).T
+                             dtype=np.float32).reshape(4, 4)
     bust_to_origin = np.array([0.006, -1.644, 0.010])
     v += bust_to_origin
 
@@ -1300,6 +1301,7 @@ def replace_scalp(template_mesh, source_mesh,scalp_uv_path,save_path):
 
 def generate_flame_scalp(target_path,source_mesh,flame_template_path,scalp_mask_path):
     flame_template = trimesh.load_mesh(flame_template_path)
+    source_mesh = trimesh.load_mesh(source_mesh)
     faces = source_mesh.faces
     source_v = np.array(source_mesh.vertices)
     uv = flame_template.visual.uv
@@ -1346,7 +1348,7 @@ def generate_flame_scalp(target_path,source_mesh,flame_template_path,scalp_mask_
     scalp_faces = np.concatenate(scalp_faces,0)
     scalp_face_idx = np.asarray(scalp_face_idx)
     scalp = trimesh.Trimesh(vertices=scalp_v,faces=scalp_faces)
-    trimesh.exchange.export.export_mesh(scalp,target_path,include_texture=False)
+    trimesh.exchange.export.export_mesh(scalp,os.path.join(target_path,'scalp.obj'),include_texture=False)
     # np.save(scalp_face_idx_path,scalp_face_idx)
 
 def generate_bust(source_mesh, template_mesh, scalp_mask_path, flame_template_path, flame_idx_path ,save_root):

@@ -1,0 +1,78 @@
+HairGenerate:
+    connect_dot_threshold: 0.85
+    connect_scalp: true
+    connect_segments: true
+    connect_threshold: 0.005
+    connect_to_guide: null
+    dist_to_root: 6
+    generate_segments: true
+    grow_threshold: 0.9
+    out_ratio: 0.0
+PMVO:
+    conf_threshold: 0.1
+    filter_point: true
+    genrate_ori_only: null
+    infer_inner: true
+    num_sample_per_grid: 4
+    optimize: true
+    patch_size: 5
+    threshold: 0.05
+    visible_threshold: 1
+bbox_min:
+- -0.32
+- -0.32
+- -0.24
+bust_to_origin:
+- 0.006
+- -1.644
+- 0.01
+camera_path: camera/calib_data/wky07-22/cam_params.json
+check_strands: true
+ckpt_path: output/10-16/HairStyleVAE.pth
+cpu: null
+data:
+    Conf_path: conf
+    Occ3D_path: ours/Occ3D.mat
+    Ori2D_path: best_ori
+    Ori3D_path: ours/Ori3D.mat
+    bust_path: ours/bust_long_tsfm.obj
+    case: vcistefan
+    conf_threshold: 0.4
+    depth_path: render_depth
+    frame_interval: 1
+    image_size:
+    - 1700
+    - 1400
+    mask_path: hair_mask
+    raw_points_path: ours/colmap_points.obj
+    root: data
+    scalp_path: ours/scalp_tsfm.obj
+    strands_path: ours/world_str_raw.dat
+device: cuda:0
+gpu: 0
+image_camera_path: ours/cam_params.json
+infer_inner:
+    render_data: true
+    run_mvs: true
+name: 10-16
+ngp:
+    marching_cubes_density_thresh: 2.5
+output_path: output/10-16
+output_root: output
+prepare_data:
+    fit_bust: true
+    process_bust: true
+    process_camera: true
+    process_imgs: true
+    render_depth: true
+    run_ngp: true
+    select_images: true
+save_path: refine
+scalp_diffusion: null
+seed: 0
+segment:
+    CDGNET_ckpt: assets/CDGNet/LIP_epoch_149.pth
+    MODNET_ckpt: assets/MODNet/modnet_photographic_portrait_matting.ckpt
+    scene_path: null
+vsize: 0.005
+yaml: configs/reconstruct/vcistefan

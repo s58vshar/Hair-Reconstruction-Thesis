@@ -11,7 +11,7 @@ def nerf_to_ngp(xf, convert_quat=True):
 	mat = mat[:-1, :]
 	mat[:, 1] *= -1  # flip axis
 	mat[:, 2] *= -1
-	mat[:, 3] *= 0.33  # scale
+	mat[:, 3] *= 0.15  # scale
 	mat[:, 3] += [0.5, 0.5, 0.5]  # offset
 
 	mat = mat[[1, 2, 0], :]  # swap axis
@@ -38,7 +38,7 @@ def ngp_to_nerf(R,T):
 	mat[:3,3]=T
 	mat = mat[[2,0,1,3],:]
 	mat[:3,3]-=[0.5, 0.5, 0.5]
-	mat[:3,3]/=0.33
+	mat[:3,3]/=0.15
 	mat[:,2]*=-1
 	mat[:,1]*=-1
 	return mat
@@ -61,18 +61,32 @@ def load_transofrm_json(path):
 	fov = camera_angle_y * 180 / math.pi
 	n_frames = len(data['frames'])
 	xforms = {}
+	fl_x = []
+	fl_y = []
+	cx = []
+	cy = []
 	for i in range(n_frames):
 		file = data['frames'][i]['file_path'].split('/')[-1][:-4]
+		#file = data['frames'][i]['file_path'].split('\\')[-1][:-4]
 		xform = data['frames'][i]['transform_matrix']
 		xforms[file] = xform
+		# flxt = data['frames'][i]['fl_x']
+		# flyt = data['frames'][i]['fl_y']
+		# fl_x.append(flxt)
+		# fl_y.append(flyt)
+		# cxt = data['frames'][i]['cx']
+		# cyt = data['frames'][i]['cy']
+		# cx.append(cxt)
+		# cy.append(cyt)
 	xforms = dict(sorted(xforms.items()))
 
-	return xforms, fov
+	#return xforms, fl_x,fl_y,cx,cy
+	return xforms,fov
 
 
 def load_cam_params(path):
-	w, h = (1080, 1920)
-	scale = 2 / 3
+	w, h = (4096, 2730)
+	scale = 0.33 * 2
 	Rotation = []
 	Translate = []
 	fovs_x = []
@@ -254,7 +268,7 @@ def generate_ngp_posefrom_cam_params(data_folder,camera_path,save_path):
 	for i in range(len(Rotation)):
 		Rotation[i] = mvs_to_ngp(Rotation[i])
 		Translate[i] += [1, 1, 1]
-		Translate[i] *= 2           #scale
+		Translate[i] *= 6.9        #scale
 
 	q, t = load_base_cam(data_folder + '/key_frame.json')
 	q = q[0]
@@ -306,6 +320,7 @@ def generate_mvs_pose_from_base_cam(data_folder, select_files,camera_path, image
 	h, w = image_size
 
 	xforms, fov = load_transofrm_json(data_folder + '/transforms.json')
+	#xforms, fl_x,fl_y,cx,cy = load_transofrm_json(data_folder + '/transforms.json')
 	quat = []
 	trans = []
 	fovs = []
@@ -322,7 +337,7 @@ def generate_mvs_pose_from_base_cam(data_folder, select_files,camera_path, image
 	for i in range(len(Rotation)):
 		Rotation[i] = mvs_to_ngp(Rotation[i])
 		Translate[i] += [1, 1, 1]
-		Translate[i] *= 2                    #scale
+		Translate[i] *= 6.9              #scale
 
 	mvs_c2w_R = Rotation[0]
 	mvs_c2w_T = Translate[0]
@@ -338,8 +353,9 @@ def generate_mvs_pose_from_base_cam(data_folder, select_files,camera_path, image
 	pose = []
 	intrin_op = []
 	ndc_prj = []
-
+ 
 	for q, t, fov in zip(quat, trans, fovs):
+	#for q, t, fov,f_x,f_y, c_x, c_y in zip(quat, trans, fovs, fl_x, fl_y, cx , cy):
 		mat = quat2mat(q)
 		R_pose = np.linalg.inv(mat) @ quat2mat(base_q)
 		T_pose = np.linalg.inv(mat) @ (base_t - t)
@@ -350,7 +366,7 @@ def generate_mvs_pose_from_base_cam(data_folder, select_files,camera_path, image
 		c2w_R = np.linalg.inv(w2c_R)
 		c2w_T = - np.dot(np.linalg.inv(w2c_R), w2c_T)
 		mat = np.eye(4)
-		c2w_T /= 2                            #scale
+		c2w_T /=6.9                       #scale
 		c2w_T -= np.array([1, 1, 1])
 		c2w_R[:, 1:3] *= -1
 		mat[:3, :3] = c2w_R
@@ -358,6 +374,13 @@ def generate_mvs_pose_from_base_cam(data_folder, select_files,camera_path, image
 		pose.append(mat)
 		intrin_op.append(np.array([intrin, intrin, 0, 0]))
 		ndc_prj.append(np.array([intrin * 2 / w, intrin * 2 / h, 0, 0]))
+		# ndc_prj.append(np.array([
+		# 	2 * f_x / w,
+		# 	2 * f_y / h,
+		# 	-2 * (c_x - w / 2) / w,
+		# 	2 * (c_y - h / 2) / h
+		# ]))
+
 	save_path = data_folder + '/cam_params.json'
 	save_camera_json(intrin_op, pose, ndc_prj, file_name, save_path)
 
@@ -406,7 +429,7 @@ def convert_mesh_to_mvs(root,camera_path, save_path):
 	vertices = np.asarray(mesh.vertices)
 	# vertices[:,1:] *= -1
 	# vertices*=0.3275
-	vertices*=0.33
+	vertices*=0.15
 	vertices += np.array([0.5, 0.5, 0.5])
 	# vertices = vertices[:,[1,2,0]]
 
@@ -415,7 +438,7 @@ def convert_mesh_to_mvs(root,camera_path, save_path):
 	for i in range(len(Rotation)):
 		Rotation[i] = mvs_to_ngp(Rotation[i])
 		Translate[i] += [1, 1, 1]
-		Translate[i] *= 2                   #scale
+		Translate[i] *= 6.9               #scale
 
 	q, t = load_base_cam(root + '/key_frame.json')
 	q = q[0]
@@ -433,7 +456,7 @@ def convert_mesh_to_mvs(root,camera_path, save_path):
 	vertices = R0 @ vertices + T0[:,None]   ### c2w
 	vertices = vertices.transpose(1,0)
 
-	vertices/=2                           #scale
+	vertices/=6.9                      #scale
 	vertices-= np.array([1, 1, 1])
 	# vertices[:,1:]*= -1
 

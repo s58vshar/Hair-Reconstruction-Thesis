@@ -145,15 +145,18 @@ def calculate_mask(args):
     modnet = nn.DataParallel(MODNet(backbone_pretrained=False))
     modnet.load_state_dict(torch.load(args.MODNET_ckpt))
     device = torch.device('cuda')
-    modnet.eval().to(device)
+    modnet.to(device).eval()
     
     # Create silh masks
     silh_list = []
     for i in tqdm(range(len(tens_list))):
         silh_mask = obtain_modnet_mask(tens_list[i], modnet, 512)
-        silh_list.append(silh_mask)
+        #silh_list.append(silh_mask)
         cv2.imwrite(os.path.join(args.scene_path, 'mask', images[i]), postprocess_mask(silh_mask)[0].astype(np.uint8))
     
+    del(modnet)
+    del(tens_list)
+    torch.cuda.empty_cache()
     print("Start calculating hair masks!")
 #     load CDGNet for hair masks
     model = Res_Deeplab(num_classes=20)
@@ -176,8 +179,8 @@ def calculate_mask(args):
             state_dict[key] = deepcopy(state_dict_old[key])
 
     model.load_state_dict(state_dict)
-    model.eval()
     model.cuda()
+    model.eval()
 
     basenames = sorted([s.split('.')[0] for s in os.listdir(os.path.join(args.scene_path, 'capture_images'))])
     input_size = (1024, 1024)
@@ -224,12 +227,14 @@ def calculate_mask(args):
         hair_mask = hair_mask.astype(np.uint8)
         source_img = raw_images[i]
 
-        Image.fromarray(hair_mask).save(os.path.join(args.scene_path, 'hair_mask', basenames[i] + suffix))
+        Image.fromarray(hair_mask, mode="L").save(os.path.join(args.scene_path, 'hair_mask', basenames[i] + suffix))
         hair_mask = hair_mask[...,None].repeat(3,-1)
 
         mask_hair = hair_mask*0.5+source_img*0.5
         Image.fromarray(mask_hair.astype(np.uint8)).save(os.path.join(args.scene_path, 'mask_hair', basenames[i] +suffix))
 
+    del(model)
+    torch.cuda.empty_cache()
     print('Results saved in folder: ', os.path.join(args.scene_path, 'hair_mask'))
         
 if __name__ == "__main__":

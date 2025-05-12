@@ -231,7 +231,7 @@ def deep_mvs_eval(args):
             save_ori_mat(save_points, save_orients, voxel_min, vsize/2, grid_resolution*2, mat_save_root,
                          model_tsfm.cpu().numpy())
 
-            generate_headtrans_from_tsfm(item['model_tsfm_semantic_path'][0], os.path.join(mat_save_root, 'head.trans'))
+            #generate_headtrans_from_tsfm(item['model_tsfm_semantic_path'][0], os.path.join(mat_save_root, 'head.trans'))
 
 
             # print('num sample:',sample_occ.shape[0])

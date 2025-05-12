@@ -4,21 +4,21 @@ import trimesh
 
 if __name__ == '__main__':
 
-    root = r'E:\wukeyu\hair\project\MonoHair_release\data\ksyusha1'
+    root = r'/home/sharma/MonoHair/data/ct2wings'
 
 
 
 
 
 
-    bust = trimesh.load(os.path.join(root,'Bust/bust_long_tsfm.obj'))
+    bust = trimesh.load(os.path.join(root,'Bust/bust_long.obj'))
 
     vertices = np.asarray(bust.vertices)
     vertices+= np.array([0.006, -1.644, 0.010])
     faces = np.asarray(bust.faces)
     vis_bust = vis_mesh(vertices, faces)
 
-    root = root+r'\output\10-16'
+    root = root+r'/output/10-16'
     surface = np.load(root+'/optimize/surface.npy')
     filter = np.load(root+'/optimize/filter_unvisible.npy')
     surface_pcd = vis_point_colud(surface[:,:3])

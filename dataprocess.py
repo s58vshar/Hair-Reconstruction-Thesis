@@ -290,8 +290,8 @@ def generate_matting_MODNet(inputpath, savepath, ckpt_path='assets/MODNet/modnet
     # bgr = torch.tensor([1, 1, 1.]).view(3, 1, 1).cuda() 
     for i in tqdm(range(len(frame_IDs))):
         frame_ID = frame_IDs[i]
-        img_path = os.path.join(images_folder, '{}.png'.format(frame_ID))
-        img_masked_path = os.path.join(output_folder, '{}.png'.format(frame_ID))
+        img_path = os.path.join(images_folder, '{}.jpg'.format(frame_ID))
+        img_masked_path = os.path.join(output_folder, '{}.jpg'.format(frame_ID))
         img = cv2.imread(img_path)[:, :, :3]
         h, w, _ = img.shape
         frame_np = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -318,7 +318,7 @@ def generate_matting_MODNet(inputpath, savepath, ckpt_path='assets/MODNet/modnet
         if h>w:
             mask = mask[:,(h-w)//2:(h-w)//2+w]
         elif w>h:
-            mask = mask[(w-h)//2:(w-h)//2+h,w]
+            mask = mask[(w-h)//2:(w-h)//2+h,:w]
 
         img_masked = np.concatenate([img[..., :3], mask], axis=-1)
         cv2.imwrite(img_masked_path, img_masked)
@@ -330,7 +330,7 @@ def generate_landmark2d(inputpath, savepath, device='cuda:0', vis=False):
     import face_alignment
     detect_model = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, device=device, flip_input=False)
 
-    imagepath_list = glob(os.path.join(inputpath, '*.png'))
+    imagepath_list = glob(os.path.join(inputpath, '*.jpg'))
     imagepath_list = sorted(imagepath_list)
     print('len:',len(imagepath_list))
     for imagepath in tqdm(imagepath_list):
@@ -340,7 +340,7 @@ def generate_landmark2d(inputpath, savepath, device='cuda:0', vis=False):
             out = detect_model.get_landmarks(image)
             kpt = out[0].squeeze()
             np.savetxt(os.path.join(savepath, f'{name}.txt'), kpt)
-            if vis:
+            if True:
                 image = cv2.imread(imagepath)
                 image_point = plot_points(image, kpt)
                 cv2.imwrite(os.path.join(savepath, f'{name}.png'), image_point)
@@ -388,7 +388,7 @@ def generate_iris(inputpath, savepath, device='cuda:0', vis=False):
     detect_face_landmarks = FaceLandmark()
     detect_iris_landmarks = IrisLandmark()
 
-    imagepath_list = glob(os.path.join(inputpath, '*.png'))
+    imagepath_list = glob(os.path.join(inputpath, '*.jpg'))
     imagepath_list = sorted(imagepath_list)
     # iris_dict = {}
     for imagepath in tqdm(imagepath_list):
@@ -444,7 +444,7 @@ def generate_iris(inputpath, savepath, device='cuda:0', vis=False):
             lmks_array[:, :2] = lmks
             lmks_array[:, 2] = 1.
         np.savetxt(os.path.join(savepath, f'{name}.txt'), lmks_array)
-        if vis:
+        if True:
             image = cv2.imread(imagepath)
             image_point = plot_points(image, lmks_array)
             cv2.imwrite(os.path.join(savepath, f'{name}.png'), image_point)
@@ -478,10 +478,10 @@ def generate_face_parsing(inputpath, savepath, ckpt_path='assets/face_parsing/mo
             img_array = np.array(img)
             if h>w:
                 num = (h-w)//2
-                img_array = np.concatenate([np.zeros((h,num,4)),img_array,np.zeros((h,num,4))],1)
+                img_array = np.concatenate([np.zeros((h,num,3)),img_array,np.zeros((h,num,3))],1)
             elif w>h:
                 num = (w-h)//2
-                img_array = np.concatenate([np.zeros((num,w,4)),img_array,np.zeros((num,w,4))],0)
+                img_array = np.concatenate([np.zeros((num,w,3)),img_array,np.zeros((num,w,3))],0)
             img = Image.fromarray(np.uint8(img_array))
 
             # new_img = Image.new('RGB',(max_size,max_size),(0,0,0))
@@ -530,7 +530,7 @@ def generate_face_parsing(inputpath, savepath, ckpt_path='assets/face_parsing/mo
             #     logger.info(f'face parsing for image {os.path.join(inputpath, image_path)} failed, less than 5 cat was found, delete image')
             #     continue
             cv2.imwrite(os.path.join(savepath, f'{name}.png'), parsing)
-            if vis:
+            if True:
                 parsing_vis = vis_parsing_maps(image, parsing, stride=1)
                 cv2.imwrite(os.path.join(savepath, f'{name}_vis.png'), parsing_vis,
                             [int(cv2.IMWRITE_JPEG_QUALITY), 100])

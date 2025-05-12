@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     interval=10  #### set interval to make the finally images around 300-600 frames, more frames, results more better when run colmap
     file = 'short_straight'
-    root = '/datasets/wky/data/mvs_hair/video'
+    root = 'datasets/wky/data/mvs_hair/video'
     video_root = root+'/{}.MP4'.format(file)
     save_root = root+r'/{}/capture_images'.format(file)
     frames = ReadVideo(video_root, save_root,save=False)

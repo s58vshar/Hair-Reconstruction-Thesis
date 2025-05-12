@@ -1,0 +1,20 @@
+_parent_: configs/Bust_fit/base.yaml
+
+subject: ct2wings
+
+
+savepath: data
+subject_path: data/ct2wings
+camera_path: data/ct2wings/ours/cam_params.json
+
+data:
+    image_size: [2730,4096]
+
+smplx:
+    n_shape: 300
+    n_exp: 100
+
+
+
+loss:
+  scale_weight: 1

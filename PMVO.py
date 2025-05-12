@@ -8,6 +8,7 @@ import torch
 import os
 from tqdm import trange
 from Utils.Camera_utils import load_cam,parsing_camera
+import open3d as o3d
 
 
 class PMVO(nn.Module):
@@ -20,10 +21,10 @@ class PMVO(nn.Module):
         self.camera_key = []
         for k,v in camera.items():
 
-            depths[k] = torch.from_numpy(np.array(depths[k])).to(device).type(torch.float)
-            Ori[k] = torch.from_numpy(Ori[k]).to(device).type(torch.float)
-            Conf[k] = torch.from_numpy(Conf[k]).to(device).type(torch.float)
-            masks[k] = torch.from_numpy(masks[k]).to(device).type(torch.float)
+            depths[k] = torch.from_numpy(np.array(depths[k])).to(device).type(torch.half)
+            Ori[k] = torch.from_numpy(Ori[k]).to(device).type(torch.half)
+            Conf[k] = torch.from_numpy(Conf[k]).to(device).type(torch.half)
+            masks[k] = torch.from_numpy(masks[k]).to(device).type(torch.half)
             self.camera_key.append(k)
             self.camera.append(v)
 
@@ -37,7 +38,7 @@ class PMVO(nn.Module):
         self.conf_threshold =conf_threshold
 
     def forward(self, points):
-        points = torch.from_numpy(points).to(self.device).type(torch.float)  ### N,3
+        points = torch.from_numpy(points).to(self.device).type(torch.half)  ### N,3
         self.Compute_Visible_and_Ori(points)
         base_view_indexs,base_view_confs = self.Find_max_conf_from_visible_view()
 
@@ -47,7 +48,7 @@ class PMVO(nn.Module):
         best_surface_points = torch.zeros_like(points)
 
         weight = self.compute_weight(self.visible, self.Conf, self.mask)
-        for i in range(0,20,2):
+        for i in range(0,10,1):
             base_view_index = base_view_indexs[i]
             sample_next_points,surface_points = self.sample_next_3d_pos(points, base_view_index)  ### N * num_sample * 3
             Prj_Ori_2D = self.compute_reproject_ori(surface_points, sample_next_points)
@@ -293,13 +294,13 @@ class PMVO(nn.Module):
 
             uv[:, 0:1] = - uv[:, 0:1]
             uv[:, :2] = (uv[:, :2] + 1) / 2
-            uv[:, :2] *= torch.tensor(self.image_size[::-1], device=points.device, dtype=torch.float)
+            uv[:, :2] *= torch.tensor(self.image_size[::-1], device=points.device, dtype=torch.half)
 
 
             ### trace next point
             next_pos_2d = uv + self.Ori[i][index][:,[1,0]]*2       ### M*2
 
-            next_pos_2d /= torch.tensor(self.image_size[::-1], device=points.device, dtype=torch.float)
+            next_pos_2d /= torch.tensor(self.image_size[::-1], device=points.device, dtype=torch.half)
             next_pos_2d[:,:2] = next_pos_2d * 2 -1
             next_pos_2d[:,0:1] = - next_pos_2d[:,0:1]
 
@@ -324,10 +325,10 @@ class PMVO(nn.Module):
             next_pos_2d = torch.repeat_interleave(next_pos_2d,num_sample,dim=1) ### M*180*2
             next_pos_2d = torch.reshape(next_pos_2d,(-1,2))
 
-            sample_world_v = self.camera[i].reprojection(next_pos_2d, sample_next_z,to_world=True)[:,:3]
+            sample_world_v = self.camera[i].reprojection(next_pos_2d, sample_next_z,to_world=True)[:,:3].to(torch.half)
             sample_world_v = torch.reshape(sample_world_v,(-1,num_sample,3))    #### M*180*3
 
-            surface_p = self.camera[i].reprojection(uv_normalized, depth,to_world=True)[:,:3]
+            surface_p = self.camera[i].reprojection(uv_normalized, depth,to_world=True)[:,:3].to(torch.half)
 
             sample_points[index] = sample_world_v
             surface_points[index][unvisible_index] = surface_p[unvisible_index]
@@ -338,7 +339,7 @@ class PMVO(nn.Module):
 
     def Find_max_conf_from_visible_view(self):
         Conf = torch.where(self.visible<1,self.Conf*(torch.maximum(self.visible,torch.zeros_like(self.visible))),self.Conf)
-        base_view_conf, base_view_index = torch.topk(Conf,20,dim=0,largest=True)
+        base_view_conf, base_view_index = torch.topk(Conf,10,dim=0,largest=True)
 
         return base_view_index,base_view_conf
 
@@ -379,7 +380,7 @@ class PMVO(nn.Module):
         uv,z = camera.projection(points)
         uv[:, 0:1] = - uv[:, 0:1]
         uv[:, :2] = (uv[:, :2] + 1) / 2
-        uv[:, :2] *= torch.tensor(image_size[::-1], device=points.device, dtype=torch.float)
+        uv[:, :2] *= torch.tensor(image_size[::-1], device=points.device, dtype=torch.half)
         uv = torch.round(uv).type(torch.long)
         unvisible_index1 = torch.gt(uv[:,0],image_size[1] - 1)
         unvisible_index2 = torch.lt(uv[:,0],0)
@@ -389,10 +390,20 @@ class PMVO(nn.Module):
         uv[:, 0] = torch.clamp(uv[:, 0], 0, image_size[1] - 1)
         uv[:, 1] = torch.clamp(uv[:, 1], 0, image_size[0] - 1)
 
-        z = -z/2
+        z = (-z/2).to(torch.half)
         unvisible_index = torch.logical_or(unvisible_index1,unvisible_index2)
         unvisible_index = torch.logical_or(unvisible_index,unvisible_index3)
         unvisible_index = torch.logical_or(unvisible_index,unvisible_index4)
+        
+        # uv_image = torch.zeros((image_size[0], image_size[1]), dtype=torch.float32)
+        # valid_uv = uv[~unvisible_index]
+        # for u, v in valid_uv:
+        #     if 0 <= u < image_size[1] and 0 <= v < image_size[0]:
+        #         uv_image[v, u] = 100.0  
+        # import matplotlib.pyplot as plt
+        # plt.imshow(uv_image, cmap='inferno')
+        # plt.title("UV Image with Projected Points")
+        # plt.show()
 
         return uv[:,[1,0]],z, unvisible_index
 
@@ -418,6 +429,44 @@ class PMVO(nn.Module):
             c = torch.max(c, dim=-1)[0]
 
             c[unvisible_index] = 0
+            # H, W = self.image_size
+            # device = m.device
+
+            # # Create empty images
+            # m_img = torch.zeros((H, W), device=device, dtype=m.dtype)
+            # d_img = torch.zeros((H, W), device=device, dtype=d.dtype)
+            # c_img = torch.zeros((H, W), device=device, dtype=c.dtype)
+
+            # # Scatter values
+            # m_img[uv[:, 0], uv[:, 1]] = m
+            # d_img[uv[:, 0], uv[:, 1]] = d
+            # c_img[uv[:, 0], uv[:, 1]] = c
+
+            # # Detach & plot
+            # m_np = m_img.detach().cpu().numpy()
+            # d_np = d_img.detach().cpu().numpy()
+            # c_np = c_img.detach().cpu().numpy()
+            # import matplotlib.pyplot as plt
+            # plt.figure(figsize=(12, 4))
+
+            # plt.subplot(1, 3, 1)
+            # plt.imshow(m_np, cmap='hot')
+            # plt.title(f"Mask (m) {count}")
+            # plt.colorbar()
+
+            # plt.subplot(1, 3, 2)
+            # plt.imshow(d_np, cmap='viridis')
+            # plt.title(f"Depth (d) {count}")
+            # plt.colorbar()
+
+            # plt.subplot(1, 3, 3)
+            # plt.imshow(c_np, cmap='hot')
+            # plt.title(f"Confidence (c) {count}")
+            # plt.colorbar()
+
+            # plt.tight_layout()
+            # plt.show()
+
             # bg = torch.where(m==0,torch.ones_like(m), torch.zeros_like(m))   ###  not hair mask
             unvisible = torch.where(z * 255 - d > 0.1,torch.ones_like(d), torch.zeros_like(d))
             unvisible[unvisible_index] = 1
@@ -482,7 +531,7 @@ class PMVO(nn.Module):
     def get_depth(self,uv,view):
         depth = self.depths_dict[view]
 
-        return depth[uv[:,0],uv[:,1]][:,0]
+        return depth[uv[:,0],uv[:,1]]
 
     def get_ori(self,uv,view):
         Ori_2D = self.Ori_dict[view]
@@ -520,7 +569,7 @@ class PMVO(nn.Module):
 
     def get_mask(self,uv, view):
         mask = self.mask_dict[view]
-        return mask[uv[:,0],uv[:,1]][:,0]
+        return mask[uv[:,0],uv[:,1]]
 
     def compute_visible(self, depth, z):
         visible = torch.zeros_like(depth)
@@ -532,17 +581,17 @@ class PMVO(nn.Module):
 
 
 
-def filter_negative_points(points,pmvo,args,step=30):
+def filter_negative_points(points,pmvo,args,step=90):
     if points.shape[0] % step !=0:
         step = step+1
-    num_sub_p = points.shape[0] // 30
+    num_sub_p = points.shape[0] //90
     surface_indexs = []
     surface_points = []
     filter_indexs = []
     for i in range(step):
         sub_points = points[i * num_sub_p:(i + 1) * num_sub_p]
         surface_index,surface_p,filter_index = pmvo.filter_points(
-            torch.from_numpy(sub_points).to(args.device).type(torch.float))
+            torch.from_numpy(sub_points).to(args.device).type(torch.half))
         surface_points.append(surface_p)
         filter_indexs.append(filter_index)
         surface_indexs.append(surface_index)
@@ -669,7 +718,7 @@ def refine(points,ori,loss,pmvo,filter_unvisible_points,args,infer_inner=True,th
 
         sub_points = filter_unvisible_points[i * sub_num:min((i + 1) * sub_num, filter_unvisible_points.shape[0])]
         _, index = points_tree.query(sub_points, 100)
-        sub_points = torch.from_numpy(sub_points).type(torch.float).to(device)
+        sub_points = torch.from_numpy(sub_points).type(torch.half).to(device)
         pmvo.Compute_Visible_and_Ori(sub_points)
         filter_index = pmvo.filter_head_points(sub_points,args.PMVO.visible_threshold)
 
@@ -684,6 +733,10 @@ def refine(points,ori,loss,pmvo,filter_unvisible_points,args,infer_inner=True,th
     select_filter_unvisible_points = select_filter_unvisible_points.cpu().numpy()
     np.save(args.output_path + '/refine/filter_unvisible.npy', select_filter_unvisible_points)
     np.save(args.output_path + '/refine/filter_unvisible_ori.npy', filter_unvisible_ori)
+
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(select_points)
+    o3d.io.write_point_cloud(args.data.root + "/pcrefined.ply", pcd)
 
 
     select_ori = np.concatenate([select_ori,filter_unvisible_ori],0)
@@ -701,7 +754,10 @@ def refine(points,ori,loss,pmvo,filter_unvisible_points,args,infer_inner=True,th
 
     up_index = select_ori[:, 1] > 0
     select_ori[up_index] *= -1
-    total_x, total_y, total_z = p2v(select_points, voxel_min, voxel_size, grid_resolution)
+    total_x, total_y, total_z, pv = p2v(select_points, voxel_min, voxel_size, grid_resolution)
+    pcd1 = o3d.geometry.PointCloud()
+    pcd1.points = o3d.utility.Vector3dVector(pv)
+    o3d.io.write_point_cloud(args.data.root + "/pcselect.ply", pcd1)
 
 
     ori_dict = {}
@@ -721,7 +777,7 @@ def refine(points,ori,loss,pmvo,filter_unvisible_points,args,infer_inner=True,th
         z = int(key[2])
         occ[x,y,z] = 1
         value = np.concatenate(value,0)
-        value = torch.from_numpy(value).type(torch.float).to(device)
+        value = torch.from_numpy(value).type(torch.half).to(device)
         avg_ori = compute_points_similarity(value[None])[0]
         ori[x,y,z] = avg_ori.cpu().numpy()
 
@@ -734,8 +790,8 @@ def refine(points,ori,loss,pmvo,filter_unvisible_points,args,infer_inner=True,th
         coarse_data = np.load(args.data.root + '/ours/raw.npy')
         coarse_points = coarse_data[:, :3]
         coarse_ori = coarse_data[:, 3:6]
-        points = coarse_points.astype(np.float32)
-        coarse_ori = coarse_ori.astype(np.float32)
+        points = coarse_points.astype(np.float16)
+        coarse_ori = coarse_ori.astype(np.float16)
         up_index = coarse_ori[:, 1] > 0
         coarse_ori[up_index] *= -1
         points = torch.from_numpy(points).to(args.device)
@@ -744,7 +800,7 @@ def refine(points,ori,loss,pmvo,filter_unvisible_points,args,infer_inner=True,th
         unvisible_index = unvisible_index.cpu().numpy()
         un_visible_points = points[unvisible_index]
         unvisible_ori = coarse_ori[unvisible_index]
-        x, y, z = p2v(un_visible_points.copy(), voxel_min, voxel_size, grid_resolution)
+        x, y, z,_ = p2v(un_visible_points.copy(), voxel_min, voxel_size, grid_resolution)
         occ[x, y, z] = 1
         ori[x, y, z] = unvisible_ori
         np.save(os.path.join(args.save_path,'coarse.npy'),un_visible_points)
@@ -819,33 +875,43 @@ if __name__ == '__main__':
     scalp_mean = np.mean(scalp_vertices,axis=0)
     scalp_max = np.max(scalp_vertices,axis=0)
 
-
+    print(args.data.mask_path)
     ### load camera
+    #camera_params.json
     camera = load_cam(args.image_camera_path)
     image_path = os.path.join(args.data.root, 'capture_images')
     camera = parsing_camera(camera,image_path)
     print('num of view:',len(camera))
 
-    ### load depth
+    ### load depth render_depth
     depths = load_depth(camera, args.data.depth_path)
 
-    ### Load Conf,Ori,mask
+    ### Load Conf,Ori,mask best_ori, conf hair_mask
     Ori, Conf = Load_Ori_And_Conf(camera, args.data.Ori2D_path, args.data.Conf_path)
     masks = load_mask(camera,args.data.mask_path)
 
     ### initalize PMVO
     pmvo = PMVO(camera,depths, Ori, Conf,masks,device=device, image_size=args.data.image_size, patch_size=args.PMVO.patch_size,visible_threshold = args.PMVO.visible_threshold,conf_threshold=args.PMVO.conf_threshold)
-
+    
+    del Ori,Conf, masks, depths
 
 
     if args.PMVO.optimize:
         print('load raw mesh...')
         #### load colmap points
-        colmap_points = load_colmap_points(args.data.raw_points_path, args.bbox_min, args.bust_to_origin, 0.005 / 4,
-                                           [512, 512, 384], True, args.PMVO.num_sample_per_grid)
+        colmap_points = load_colmap_points(args.data.raw_points_path, [-0.32, -0.24, 0.04], args.bust_to_origin, 0.005 / 4,
+                                         [512, 512, 384], True, args.PMVO.num_sample_per_grid)
+        
+        #sipc = o3d.io.read_point_cloud("/home/sharma/MonoHair/strand_integration/result/merged_ply/si/SImod.ply")
+        #colmap_points = np.asarray(sipc.points)
+        #colmap_points += args.bust_to_origin
+        #colmap_points = SamplePointsAroundmesh(colmap_points.copy(), [-0.32, -0.32, -0.16], 0.005 / 4, num_per_grid=args.PMVO.num_sample_per_grid,grid_resolution=[512, 512, 384])
         ### filter negative points
         points = colmap_points
         raw_points = points.copy()
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points)
+        o3d.io.write_point_cloud(args.data.root + "/pcolmap.ply", pcd)
         print('total points:', points.shape[0])
         print('filter low conf points...')
         if args.PMVO.filter_point:
@@ -866,6 +932,9 @@ if __name__ == '__main__':
         select_ori = np.load(args.save_root + '/select_o.npy')
         min_loss = np.load(args.save_root + '/min_loss.npy')
         filter_unvisible_points = np.load(args.save_root + '/filter_unvisible.npy')
+        pcd2 = o3d.geometry.PointCloud()
+        pcd2.points = o3d.utility.Vector3dVector(points)
+        o3d.io.write_point_cloud(args.data.root + "/pcoptimized.ply", pcd2)
 
 
         refine(select_points, select_ori, min_loss, pmvo, filter_unvisible_points, args, infer_inner=False,

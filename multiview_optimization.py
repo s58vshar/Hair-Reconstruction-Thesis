@@ -277,7 +277,7 @@ class PoseModel(nn.Module):
         # self.register_parameter('global_trans',)
 
         for imagepath in dataset.data:
-            imagename = Path(imagepath).stem
+            imagename = Path(imagepath).stem[1:]
             # frame_id = int(imagename.split('_f')[-1])
             frame_id = int(imagename)
             name = self.subject_id
@@ -286,7 +286,7 @@ class PoseModel(nn.Module):
         #     # self.register_parameter(f'{name}_cam_{frame_id}', torch.nn.Parameter(init_cam))
         #     # init full pose
         #     self.register_parameter(f'{name}_pose_{frame_id}', torch.nn.Parameter(init_full_pose))
-            self.register_parameter(f'{name}_light_{frame_id}', torch.nn.Parameter(init_light))
+            self.register_parameter(f'{name}_light_{f"{frame_id:04d}"}', torch.nn.Parameter(init_light))
             # self.register_parameter(f'{name}_exp_{frame_id}', torch.nn.Parameter(init_exp))
 
     def forward(self, batch, extra_fix_idx=None):
@@ -316,7 +316,7 @@ class PoseModel(nn.Module):
         batch['exp'] = torch.cat([self.exp])
         # batch['scale'] = self.scale
 
-        batch['light'] = torch.cat([getattr(self, f'{names[i]}_light_{frame_ids[i]}') for i in range(batch_size)])
+        batch['light'] = torch.cat([getattr(self, f'{names[i]}_light_{frame_ids[i][1:]}') for i in range(batch_size)])
         return batch
 
 def projection( vertices, proj, pose):
@@ -647,8 +647,8 @@ class SMPLX_optimizer(torch.nn.Module):
             batch['image'] =batch['image'].to(self.cfg.device).type(torch.float32)
             image = batch['image']
             batch['mask'] = batch['mask'].to(self.cfg.device)
-            batch['hair_mask'] =batch['hair_mask'].to(self.cfg.device)
-            batch['face_mask'] =batch['face_mask'].to(self.cfg.device)
+            #batch['hair_mask'] =batch['hair_mask'].to(self.cfg.device)
+            #batch['face_mask'] =batch['face_mask'].to(self.cfg.device)
             batch_size = image.shape[0]
             batch['beta'] = self.beta.expand(batch_size, -1)
             batch['tex'] = self.tex.expand(batch_size, -1)
@@ -855,6 +855,7 @@ def get_config():
     # args.output_path = os.path.join(args.data.root, args.data.case,args.output_root,args.name)
     args.output_path = os.path.join(args.output_root, args.name)
     args.ckpt_path = os.path.join(args.output_path, 'HairStyleVAE.pth')
+    #args.vis = True
     os.makedirs(args.output_path, exist_ok=True)
     options.save_options_file(args)
 
@@ -865,7 +866,7 @@ def get_config():
 if __name__ == '__main__':
     args = get_config()
     dataprocess = DataProcessor(args)
-    # dataprocess.run(args.subject_path,args.ignore_existing)
+    dataprocess.run(args.subject_path, args.ignore_existing, args.vis)
     current_irispath_list =  glob(os.path.join(args.path, args.subject, 'iris', '*.txt'))
     current_lmkpath_list =  glob(os.path.join(args.path, args.subject, 'landmark2d', '*.txt'))
 
@@ -874,7 +875,7 @@ if __name__ == '__main__':
     for path in current_irispath_list:
         name = path.split('/')[-1][:-4]
         if os.path.exists(os.path.join(args.path, args.subject, 'landmark2d', name+ '.txt')):
-            imagepath_list.append(os.path.join(args.path, args.subject, 'matting', name + '.png'))
+            imagepath_list.append(os.path.join(args.path, args.subject, 'matting', name + '.jpg'))
 
 
     dataset = NerfDataset(args, given_imagepath_list = imagepath_list)

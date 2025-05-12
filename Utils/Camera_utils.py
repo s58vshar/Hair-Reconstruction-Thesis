@@ -44,9 +44,38 @@ class Camera():
         :return:
         '''
         self.proj = self.proj.to(vertices.device)
-        self.pose = self.pose.to(vertices.device)
+        self.pose = self.pose.to('cpu')
         vertices = vertices.permute(1, 0)
         vertices = torch.cat([vertices, torch.ones((1, vertices.size(1)), device=vertices.device)])
+        # x, y = self.pose[0][1], self.pose[1][1]
+
+        # # Choose rotation angle based on 'up' direction
+        # if abs(y) > abs(x):  
+        #     if y > 0:
+        #         angle_deg = 0   
+        #     else:
+        #         angle_deg = 0  
+        # else:  
+        #     if x > 0:
+        #         angle_deg = 90   
+        #     else:
+        #         angle_deg = -90  
+
+        # # Convert angle to radians
+        # angle_rad = np.radians(angle_deg)
+
+        # # Rotation around Z axis
+        # cos_a = np.cos(angle_rad)
+        # sin_a = np.sin(angle_rad)
+
+        # R = torch.tensor([
+        #     [cos_a, -sin_a, 0, 0],
+        #     [sin_a,  cos_a, 0, 0],
+        #     [0,      0,     1, 0],
+        #     [0,      0,     0, 1]
+        # ], dtype=torch.float32) 
+        # self.pose = (R@self.pose)
+        self.pose = self.pose.to(vertices.device)
         camera_v = torch.matmul(self.pose, vertices)
         z = camera_v[2:3, :]
         uv = torch.matmul(self.proj, camera_v)

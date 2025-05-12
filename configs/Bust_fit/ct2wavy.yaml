@@ -1,0 +1,15 @@
+_parent_: configs/Bust_fit/base.yaml
+
+subject: ct2wavy
+
+
+savepath: data
+subject_path: data/ct2wavy
+camera_path: data/ct2wavy/ours/cam_params.json
+
+data:
+    image_size: [2730,4096]
+
+smplx:
+    n_shape: 300
+    n_exp: 100

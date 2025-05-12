@@ -1,0 +1,55 @@
+batch_size: 1
+camera_path: data/vcistefan/ours/cam_params.json
+ckpt_path: output/debug/HairStyleVAE.pth
+cpu: null
+data:
+    image_size:
+    - 1700
+    - 1400
+device: cuda:0
+gpu: 0
+ignore_existing: null
+isTrain: true
+load_fits: null
+loss:
+    eyed: 2
+    inside_mask: null
+    lipd: 0.5
+    lmk: 1
+    scale_weight: 1
+name: debug
+num_workers: 4
+optimize:
+    data_type: fix_shoulder
+    iter: 10000
+    use_iris: null
+    use_mask: null
+    use_rendering: null
+    vis_step: 100
+output_path: output/debug
+output_root: output
+path: data
+savepath: data
+seed: 0
+smplx:
+    extra_joint_path: assets/data/smplx_extra_joints.yaml
+    face_eye_mask_path: assets/data/uv_face_eye_mask.png
+    face_mask_path: assets/data/uv_face_mask.png
+    flame2smplx_cached_path: assets/data/flame2smplx_tex_1024.npy
+    flame_ids_path: assets/data/SMPL-X__FLAME_vertex_ids.npy
+    flame_vertex_masks_path: assets/data/FLAME_masks.pkl
+    j14_regressor_path: assets/data/SMPLX_to_J14.pkl
+    mano_ids_path: assets/data/MANO_SMPLX_vertex_ids.pkl
+    n_exp: 100
+    n_shape: 300
+    n_tex: 100
+    smplx_model_path: assets/data/SMPLX_NEUTRAL_2020.npz
+    smplx_tex_path: assets/data/smplx_tex.png
+    tex_path: assets/data/FLAME_albedo_from_BFM.npz
+    tex_type: BFM
+    topology_path: assets/data/SMPL_X_template_FLAME_uv.obj
+    uv_size: 512
+subject: vcistefan
+subject_path: data/vcistefan
+vis: true
+yaml: configs/Bust_fit/vcistefan
